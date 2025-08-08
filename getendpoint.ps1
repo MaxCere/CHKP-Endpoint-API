@@ -3,7 +3,7 @@
     [int]   $PageSize     = 10,
     [int]   $PollInterval = 1,
     [int]   $MaxPolls     = 12,
-    [string]$FilterName   = "11"
+    [string]$FilterName   = "COMPUTERNAME"
 )
 
 $scriptRelease = "GetEndpoints v3.16 (2025-08-08)"
@@ -151,3 +151,4 @@ $items | ForEach-Object {
 } | Format-Table -AutoSize
 
 Log "=== FINE SCRIPT - $scriptRelease ==="
+
