@@ -1,0 +1,6 @@
+{
+  "clientId": "CLIENTID",
+  "accessKey": "ACCESSKEY",
+  "gateway": "https://cloudinfra-gw.portal.checkpoint.com"
+}
+
