@@ -1,7 +1,7 @@
 ﻿param(
     [string]$CredFile    = ".\credenziali.json",
     [int]   $PageSize     = 10,
-    [int]   $PollInterval = 1,
+    [int]   $PollInterval = 5,
     [int]   $MaxPolls     = 12,
     [string]$FilterName   = "COMPUTERNAME"
 )
