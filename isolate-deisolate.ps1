@@ -3,7 +3,7 @@
     [int]   $PageSize     = 10,
     [int]   $PollInterval = 1,
     [int]   $MaxPolls     = 12,
-    [string]$FilterName   = "Win11-LAB"
+    [string]$FilterName   = "COMPUTERNAME"
 )
 
 $scriptRelease = "GetEndpoints v3.25 (2025-08-07)"
