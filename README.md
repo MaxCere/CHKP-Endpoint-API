@@ -22,6 +22,13 @@ This repository contains PowerShell scripts for automating Check Point Harmony E
   - Supports CSV export for reporting and analysis
   - Provides comprehensive statistics and summaries
 
+- **GetVirtualGroupUsage.ps1** ✅ **NEW VIRTUAL GROUP ANALYZER**
+  - **NEW**: Analyzes Virtual Group usage across all policies
+  - Identifies which Virtual Groups are assigned to which policies
+  - Provides detailed statistics and usage patterns
+  - Exports detailed CSV reports for analysis
+  - Shows policy distribution across Virtual Groups
+
 ## ⚙️ Prerequisites
 
 - **PowerShell 5.1** or newer
@@ -109,13 +116,58 @@ New Rule 1                         Deployment         TEST-VG              VIRTU
 - 📁 **CSV Export**: Optional export for reporting and analysis
 - 🔄 **Robust Operation**: Handles job-based API calls with automatic polling
 
+### 4. Analyze Virtual Group Usage ✅ **NEW VIRTUAL GROUP ANALYSIS**
+
+```powershell
+# Basic usage - analyze Virtual Group usage
+.\GetVirtualGroupUsage.ps1 -CredFile ".\credenziali.json.mbe"
+
+# Custom CSV output location
+.\GetVirtualGroupUsage.ps1 -CredFile ".\credenziali.json.mbe" -CSVFile ".\MyVGReport.csv"
+```
+
+**Sample Output:**
+```
+Virtual Groups used in Policies:
+
+VirtualGroupName    PolicyName              PolicyFamily        TotalPoliciesInVG
+----------------    ----------              ------------        -----------------
+PasswordlessPreboot SmartPreBoot            Data Protection     1
+Servers            Server Protection        Threat Prevention   3
+TEST-VG            New Rule 1              Deployment          2
+TEST-VG            Custom Access Rule      Access              2
+
+=== VIRTUAL GROUPS STATISTICS ===
+Total Virtual Groups in use: 3
+
+Virtual Groups by policy count:
+  - Servers: 3 policies
+  - TEST-VG: 2 policies
+  - PasswordlessPreboot: 1 policies
+
+Policy families using Virtual Groups:
+  - Threat Prevention: 3 assignments
+  - Deployment: 2 assignments
+  - Access: 2 assignments
+  - Data Protection: 1 assignments
+```
+
+**Features:**
+- 🔍 **Virtual Group Discovery**: Identifies all Virtual Groups used in policies
+- 📈 **Usage Analysis**: Shows which policies are assigned to each Virtual Group
+- 📊 **Comprehensive Statistics**: Policy count per Virtual Group and family distribution
+- 📁 **Dual CSV Export**: 
+  - Detailed report with all policy assignments
+  - Summary report with Virtual Group statistics
+- 🎯 **Policy Family Insights**: Shows how different policy types use Virtual Groups
+
 ## 🛠️ API Endpoints Used
 
 ### Authentication Flow
 1. `POST /auth/external` - Initial authentication with clientId/accessKey
 2. `POST /app/endpoint-web-mgmt/harmony/endpoint/api/v1/session/login/cloud` - Cloud session login
 
-### Policy Assignment Script
+### Policy Analysis Scripts
 - `GET /app/endpoint-web-mgmt/harmony/endpoint/api/v1/policy/metadata` - Retrieve all policy rules metadata
 - `GET /app/endpoint-web-mgmt/harmony/endpoint/api/v1/jobs/{jobId}` - Poll job status for async operations
 
@@ -149,6 +201,26 @@ The **GetPolicyAssignments.ps1** script provides comprehensive analysis:
 - Distribution by policy family
 - Top assigned entities
 - Assignment type breakdown
+
+## 🔍 Virtual Group Analysis
+
+The **GetVirtualGroupUsage.ps1** script provides specialized Virtual Group insights:
+
+### Analysis Features
+- **Complete Virtual Group Inventory**: Lists all Virtual Groups referenced in policies
+- **Policy Distribution**: Shows how many policies each Virtual Group has
+- **Family Breakdown**: Identifies which policy families use Virtual Groups most
+- **Usage Patterns**: Reveals Virtual Group utilization across the organization
+
+### Export Files
+1. **Main Report** (`VirtualGroupUsage.csv`): Detailed list of all Virtual Group-Policy relationships
+2. **Summary Report** (`VirtualGroupUsage_Summary.csv`): Aggregated statistics per Virtual Group
+
+### Use Cases
+- **Compliance Auditing**: Verify Virtual Group policy assignments
+- **Cleanup Operations**: Identify unused or over-utilized Virtual Groups
+- **Policy Planning**: Understand current Virtual Group distribution before changes
+- **Security Review**: Ensure proper policy coverage across groups
 
 ## 🐛 Troubleshooting
 
@@ -200,13 +272,25 @@ $results | Where-Object { $_.Family -eq "Threat Prevention" }
 $results | Where-Object { $_.AssignmentType -ne "GLOBAL" }
 ```
 
+### Virtual Group Analysis
+
+Filter Virtual Group results for specific analysis:
+```powershell
+# Show only Virtual Groups with multiple policies
+$results | Where-Object { $_.TotalPoliciesInVG -gt 1 }
+
+# Focus on specific policy families
+$results | Where-Object { $_.PolicyFamily -eq "Threat Prevention" }
+```
+
 ### Automated Reporting
 
 Combine with scheduled tasks for regular policy auditing:
 ```powershell
 # Weekly policy assignment report
 .\GetPolicyAssignments.ps1 -ExportCSV
-Send-MailMessage -To "admin@company.com" -Subject "Weekly Policy Report" -Attachments "PolicyAssignments_*.csv"
+.\GetVirtualGroupUsage.ps1 -CSVFile "Weekly_VG_Report.csv"
+Send-MailMessage -To "admin@company.com" -Subject "Weekly Policy Report" -Attachments "PolicyAssignments_*.csv","Weekly_VG_Report*.csv"
 ```
 
 ## 🤝 Contributing
@@ -225,6 +309,7 @@ Contributions are welcome! Please:
 
 ## 📋 Version History
 
+- **v4.0 (2025-10-10)**: Added GetVirtualGroupUsage.ps1 for Virtual Group analysis
 - **v3.0 (2025-10-10)**: Final working GetPolicyAssignments script with full functionality
 - **v2.0 (2025-10-10)**: Added policy assignment analysis capabilities
 - **v1.0**: Initial endpoint isolation/de-isolation scripts
@@ -242,6 +327,7 @@ Contributions are welcome! Please:
 
 - 🔐 **Secure Authentication**: Robust auth flow with error handling
 - 🎯 **Policy Analysis**: Complete visibility into policy assignments
+- 🔍 **Virtual Group Insights**: Detailed Virtual Group usage analysis
 - 📊 **Rich Reporting**: Console output + CSV export options
 - 🔄 **Async Operations**: Handles job-based API calls properly
 - 🛡️ **Error Handling**: Comprehensive error detection and reporting
