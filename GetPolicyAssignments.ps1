@@ -1,11 +1,11 @@
 param(
     [string]$CredFile    = ".\credenziali.json",
-    [int]   $PageSize     = 50,
     [int]   $PollInterval = 2,
-    [int]   $MaxPolls     = 30
+    [int]   $MaxPolls     = 30,
+    [switch]$ExportCSV
 )
 
-$scriptRelease = "GetPolicyAssignments v1.2 (2025-10-10)"
+$scriptRelease = "GetPolicyAssignments v3.0 (2025-10-10) - Working Final Version"
 
 # Logging functions
 function Log($msg)    { Write-Host "[INFO] $msg" -ForegroundColor Cyan }
@@ -16,87 +16,9 @@ function ReadBody($stream) {
     try { (New-Object System.IO.StreamReader($stream)).ReadToEnd() } catch { "" }
 }
 
-function Wait-Job($jobId, $token, $mgmtToken, $gateway) {
-    $jobUrl = "$gateway/app/endpoint-web-mgmt/harmony/endpoint/api/v1/jobs/$jobId"
-    $attempt = 0
-    
-    do {
-        Start-Sleep -Seconds $PollInterval
-        $attempt++
-        Log "Polling job $jobId - attempt #$attempt..."
-        
-        try {
-            $resp = Invoke-WebRequest -Uri $jobUrl -Method Get -Headers @{
-                Authorization      = "Bearer $token"
-                "x-mgmt-api-token" = $mgmtToken
-            } -ErrorAction Stop
-            
-            $json = $resp.Content | ConvertFrom-Json
-            $status = $json.status
-            Log "Job status: '$status'"
-            
-            if ($status -eq "DONE") {
-                return $json
-            }
-        } catch {
-            LogErr "Job polling failed: $($_.Exception.Message)"
-            if ($_.Exception.Response) { 
-                LogErr (ReadBody($_.Exception.Response.GetResponseStream())) 
-            }
-            return $null
-        }
-    } until ($attempt -ge $MaxPolls)
-    
-    LogErr "Job $jobId did not complete within $MaxPolls attempts."
-    return $null
-}
-
-function Get-PolicyDetails($policyId, $token, $mgmtToken, $gateway) {
-    Log "Getting details for policy ID: $policyId"
-    
-    # Get policy details with assignments
-    $policyUrl = "$gateway/app/endpoint-web-mgmt/harmony/endpoint/api/v1/desktop-policy/$policyId"
-    
-    try {
-        $resp = Invoke-WebRequest -Uri $policyUrl -Method Get -Headers @{
-            Authorization      = "Bearer $token"
-            "x-mgmt-api-token" = $mgmtToken
-        } -ErrorAction Stop
-        
-        $policyDetails = ($resp.Content | ConvertFrom-Json)
-        return $policyDetails
-    } catch {
-        # If direct call fails, try with job
-        Log "Direct policy details API failed, trying job-based approach..."
-        
-        try {
-            $jobResp = Invoke-WebRequest -Uri $policyUrl -Method Get -Headers @{
-                Authorization       = "Bearer $token"
-                "x-mgmt-api-token"  = $mgmtToken
-                "x-mgmt-run-as-job" = "on"
-            } -ErrorAction Stop
-            
-            $jobJson = $jobResp.Content | ConvertFrom-Json
-            $jobId = $jobJson.jobId
-            
-            if ($jobId) {
-                $jobResult = Wait-Job -jobId $jobId -token $token -mgmtToken $mgmtToken -gateway $gateway
-                if ($jobResult -and $jobResult.data) {
-                    return $jobResult.data
-                }
-            }
-        } catch {
-            LogErr "Failed to get policy details for $policyId : $($_.Exception.Message)"
-            return $null
-        }
-    }
-    
-    return $null
-}
-
 # Main script
 Log "Script version: $scriptRelease"
-Log "=" * 60
+Log "=" * 70
 
 # 1) Load credentials
 if (-not (Test-Path $CredFile)) { 
@@ -147,196 +69,181 @@ try {
     exit 1
 }
 
-# 4) Get all desktop policies - using correct endpoint
-Log "Retrieving all desktop policies..."
-$policiesUrl = "$Gateway/app/endpoint-web-mgmt/harmony/endpoint/api/v1/desktop-policy"
+# 4) Request policy metadata using job-based approach
+Log "Retrieving all policy rules metadata..."
+$policyUrl = "$Gateway/app/endpoint-web-mgmt/harmony/endpoint/api/v1/policy/metadata"
 
-# First try direct API call
 try {
-    $policiesResp = Invoke-WebRequest -Uri $policiesUrl -Method Get -Headers @{
-        Authorization      = "Bearer $token"
+    $jobResponse = Invoke-WebRequest -Uri $policyUrl -Method Get -Headers @{
+        Authorization = "Bearer $token"
         "x-mgmt-api-token" = $mgmtToken
+        "x-mgmt-run-as-job" = "on"
     } -ErrorAction Stop
     
-    $policiesData = ($policiesResp.Content | ConvertFrom-Json)
-    Log "Retrieved policies data directly"
-} catch {
-    # If direct call fails, try with job-based approach
-    Log "Direct policies API failed, trying job-based approach..."
+    $jobJson = $jobResponse.Content | ConvertFrom-Json
     
-    try {
-        $jobResp = Invoke-WebRequest -Uri $policiesUrl -Method Get -Headers @{
-            Authorization       = "Bearer $token"
-            "x-mgmt-api-token"  = $mgmtToken
-            "x-mgmt-run-as-job" = "on"
-        } -ErrorAction Stop
-        
-        $jobJson = $jobResp.Content | ConvertFrom-Json
-        $jobId = $jobJson.jobId
-        
-        if (-not $jobId) {
-            LogErr "No job ID returned for policies request"
-            exit 1
-        }
-        
-        $jobResult = Wait-Job -jobId $jobId -token $token -mgmtToken $mgmtToken -gateway $gateway
-        
-        if (-not $jobResult -or -not $jobResult.data) {
-            LogErr "Failed to get policies from job"
-            exit 1
-        }
-        
-        $policiesData = $jobResult.data
-        Log "Retrieved policies data via job"
-    } catch {
-        LogErr "All desktop policy API endpoints failed: $($_.Exception.Message)"
-        if ($_.Exception.Response) { 
-            LogErr (ReadBody($_.Exception.Response.GetResponseStream())) 
-        }
-        Log "Response content: $($_.Exception.Response)"
+    if (-not $jobJson.jobId) {
+        LogErr "jobId not found in response"
         exit 1
     }
-}
-
-# Process policies data - handle different response formats
-$policies = @()
-if ($policiesData.data -and $policiesData.data.policies) {
-    $policies = $policiesData.data.policies
-} elseif ($policiesData.policies) {
-    $policies = $policiesData.policies
-} elseif ($policiesData.data -and $policiesData.data -is [array]) {
-    $policies = $policiesData.data
-} elseif ($policiesData -is [array]) {
-    $policies = $policiesData
-} else {
-    # Try to find policies in any nested property
-    $properties = $policiesData | Get-Member -MemberType NoteProperty
-    foreach ($prop in $properties) {
-        if ($prop.Name -like "*polic*" -and $policiesData.($prop.Name) -is [array]) {
-            $policies = $policiesData.($prop.Name)
-            Log "Found policies in property: $($prop.Name)"
-            break
-        }
+    
+    $jobId = $jobJson.jobId
+    Log "Job ID: $jobId"
+} catch {
+    LogErr "Failed to request policy metadata: $($_.Exception.Message)"
+    if ($_.Exception.Response) { 
+        LogErr (ReadBody($_.Exception.Response.GetResponseStream())) 
     }
-}
-
-if ($policies.Count -eq 0) {
-    LogErr "No policies found in the response"
-    Log "Response structure: $(ConvertTo-Json $policiesData -Depth 2)"
     exit 1
 }
 
-LogSuccess "Found $($policies.Count) desktop policies"
-Log "=" * 60
+# 5) Poll job until completion
+Log "Polling job for completion..."
+$jobUrl = "$Gateway/app/endpoint-web-mgmt/harmony/endpoint/api/v1/jobs/$jobId"
+$attempt = 0
 
-# 5) For each policy, get its details and assignments
+do {
+    Start-Sleep -Seconds $PollInterval
+    $attempt++
+    Log "Polling job - attempt #$attempt..."
+    
+    try {
+        $pollResp = Invoke-WebRequest -Uri $jobUrl -Method Get -Headers @{
+            Authorization = "Bearer $token"
+            "x-mgmt-api-token" = $mgmtToken
+        } -ErrorAction Stop
+        
+        $pollJson = $pollResp.Content | ConvertFrom-Json
+        $status = $pollJson.status
+        Log "Job status: '$status'"
+        
+        if ($status -eq "DONE") {
+            break
+        }
+    } catch {
+        LogErr "Job polling failed: $($_.Exception.Message)"
+        exit 1
+    }
+} until ($attempt -ge $MaxPolls)
+
+if ($status -ne "DONE") {
+    LogErr "Job did not complete within $MaxPolls attempts"
+    exit 1
+}
+
+# 6) Process results
+$policies = $pollJson.data
+
+if (-not $policies -or $policies.Count -eq 0) {
+    LogErr "No policies found in job response"
+    exit 1
+}
+
+LogSuccess "Found $($policies.Count) policy rules"
+
+# 7) Create results array
 $results = @()
 
 foreach ($policy in $policies) {
-    # Handle different policy ID field names
-    $policyId = $null
-    $policyName = "Unknown"
-    $policyType = "Desktop Policy"
-    $domain = "Global"
+    $ruleName = if ($policy.name) { $policy.name } else { "Unknown" }
+    $ruleId = if ($policy.id) { $policy.id } else { "Unknown" }
+    $ruleFamily = if ($policy.family) { $policy.family } else { "Unknown" }
+    $connectionState = if ($policy.connectionState) { $policy.connectionState } else { "N/A" }
+    $isDefault = if ($policy.isDefaultRule) { $policy.isDefaultRule } else { $false }
+    $assignments = $policy.assignments
     
-    # Try different possible field names for policy ID
-    if ($policy.uid) { $policyId = $policy.uid }
-    elseif ($policy.id) { $policyId = $policy.id }
-    elseif ($policy.policy_id) { $policyId = $policy.policy_id }
-    elseif ($policy.policyId) { $policyId = $policy.policyId }
-    
-    # Try different possible field names for policy name
-    if ($policy.name) { $policyName = $policy.name }
-    elseif ($policy.policy_name) { $policyName = $policy.policy_name }
-    elseif ($policy.policyName) { $policyName = $policy.policyName }
-    
-    # Try different possible field names for domain
-    if ($policy.domain -and $policy.domain.name) { $domain = $policy.domain.name }
-    elseif ($policy.domain -and $policy.domain -is [string]) { $domain = $policy.domain }
-    
-    if (-not $policyId) {
-        Log "Skipping policy without valid ID: $(ConvertTo-Json $policy -Depth 1)"
-        continue
-    }
-    
-    Log "Processing policy: '$policyName' (ID: $policyId)"
-    
-    # Get detailed policy information including assignments
-    $policyDetails = Get-PolicyDetails -policyId $policyId -token $token -mgmtToken $mgmtToken -gateway $gateway
-    
-    # Format assignments
-    $assignmentList = @()
-    if ($policyDetails) {
-        # Try different possible field names for assignments
-        $assignments = $null
-        if ($policyDetails.assignments) { 
-            $assignments = $policyDetails.assignments 
-        } elseif ($policyDetails.data -and $policyDetails.data.assignments) { 
-            $assignments = $policyDetails.data.assignments 
-        } elseif ($policyDetails.targets) { 
-            $assignments = $policyDetails.targets 
-        } elseif ($policyDetails.appliedTo) { 
-            $assignments = $policyDetails.appliedTo 
-        }
-        
-        if ($assignments -and $assignments.Count -gt 0) {
-            foreach ($assignment in $assignments) {
-                if ($assignment.name) {
-                    $assignmentType = if ($assignment.type) { $assignment.type } else { "Unknown" }
-                    $assignmentList += "$($assignment.name) ($assignmentType)"
-                } elseif ($assignment.target -and $assignment.target.name) {
-                    $assignmentType = if ($assignment.target.type) { $assignment.target.type } else { "Unknown" }
-                    $assignmentList += "$($assignment.target.name) ($assignmentType)"
-                }
+    if ($assignments -and $assignments.Count -gt 0) {
+        foreach ($assignment in $assignments) {
+            $results += [PSCustomObject]@{
+                PolicyName = $ruleName
+                PolicyID = $ruleId
+                Family = $ruleFamily
+                ConnectionState = $connectionState
+                IsDefaultRule = $isDefault
+                AssignmentName = $assignment.name
+                AssignmentType = $assignment.type
+                AssignmentID = if ($assignment.id) { $assignment.id } else { "" }
             }
         }
-    }
-    
-    if ($assignmentList.Count -eq 0) {
-        $assignmentList = @("No specific assignments (applies to all)")
-    }
-    
-    # Add to results
-    $results += [PSCustomObject]@{
-        PolicyID    = $policyId
-        PolicyName  = $policyName
-        PolicyType  = $policyType
-        Domain      = $domain
-        Assignments = ($assignmentList -join "; ")
-        AssignmentCount = if ($assignmentList[0] -like "No specific*") { 0 } else { $assignmentList.Count }
+    } else {
+        $results += [PSCustomObject]@{
+            PolicyName = $ruleName
+            PolicyID = $ruleId
+            Family = $ruleFamily
+            ConnectionState = $connectionState
+            IsDefaultRule = $isDefault
+            AssignmentName = "No specific assignments"
+            AssignmentType = "GLOBAL"
+            AssignmentID = ""
+        }
     }
 }
 
-# 6) Display results
-Log "=" * 60
-LogSuccess "Desktop Policies and Their Assignments:"
-Log "=" * 60
+# 8) Display results
+Log ""
+Log "=" * 70
+LogSuccess "Policy Rules and Their Assignments:"
+Log "=" * 70
 
-if ($results.Count -gt 0) {
-    $results | Sort-Object PolicyName | Format-Table -AutoSize -Wrap
+$results | Sort-Object Family, PolicyName, AssignmentType | Format-Table -AutoSize -Wrap
 
-    # Summary
-    Log "=" * 60
-    LogSuccess "Summary:"
-    Log "Total Policies: $($results.Count)"
-    Log "Policies with specific assignments: $(($results | Where-Object { $_.AssignmentCount -gt 0 }).Count)"
-    Log "Policies applying to all (no specific assignments): $(($results | Where-Object { $_.AssignmentCount -eq 0 }).Count)"
-    
-    # Show assignment distribution
-    $maxAssignments = ($results | Measure-Object AssignmentCount -Maximum).Maximum
-    if ($maxAssignments -gt 0) {
-        Log ""
-        Log "Assignment distribution:"
-        for ($i = 1; $i -le $maxAssignments; $i++) {
-            $count = ($results | Where-Object { $_.AssignmentCount -eq $i }).Count
-            if ($count -gt 0) {
-                Log "Policies with $i assignment(s): $count"
-            }
-        }
+# 9) Export to CSV if requested
+if ($ExportCSV) {
+    $csvFile = "PolicyAssignments_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv"
+    try {
+        $results | Export-Csv -Path $csvFile -NoTypeInformation -Encoding UTF8
+        LogSuccess "Results exported to: $csvFile"
+    } catch {
+        LogErr "Failed to export CSV: $($_.Exception.Message)"
     }
-} else {
-    LogErr "No valid policies were processed"
 }
 
-Log "=" * 60
-LogSuccess "Script completed - $scriptRelease"
+# 10) Summary statistics
+Log ""
+Log "=" * 70
+LogSuccess "Summary Statistics:"
+Log "Total Policy Rules: $($policies.Count)"
+Log "Total Assignments: $($results.Count)"
+
+$withSpecificAssignments = ($results | Where-Object { $_.AssignmentType -ne "GLOBAL" }).Count
+$globalAssignments = ($results | Where-Object { $_.AssignmentType -eq "GLOBAL" }).Count
+
+Log "Rules with specific assignments: $withSpecificAssignments"
+Log "Rules with global assignments: $globalAssignments"
+
+# Group by family
+$familyStats = $policies | Group-Object family
+Log ""
+Log "Rules by Family:"
+foreach ($family in $familyStats) {
+    Log "  - $($family.Name): $($family.Count) rules"
+}
+
+# Group by assignment type
+$assignmentStats = $results | Where-Object { $_.AssignmentType -ne "GLOBAL" } | Group-Object AssignmentType
+if ($assignmentStats.Count -gt 0) {
+    Log ""
+    Log "Assignment Types:"
+    foreach ($type in $assignmentStats) {
+        Log "  - $($type.Name): $($type.Count) assignments"
+    }
+}
+
+# Show top assigned entities
+$topAssignments = $results | Where-Object { $_.AssignmentType -ne "GLOBAL" } | 
+                  Group-Object AssignmentName | 
+                  Sort-Object Count -Descending | 
+                  Select-Object -First 5
+
+if ($topAssignments.Count -gt 0) {
+    Log ""
+    Log "Top 5 Most Assigned Entities:"
+    foreach ($assignment in $topAssignments) {
+        Log "  - $($assignment.Name): $($assignment.Count) policy rules"
+    }
+}
+
+Log ""
+Log "=" * 70
+LogSuccess "Script completed successfully - $scriptRelease"
+LogSuccess "Usage: .\GetPolicyAssignments.ps1 [-CredFile credenziali.json] [-ExportCSV]"
