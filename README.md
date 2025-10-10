@@ -1,168 +1,248 @@
-# Isolate-Deisolate Automation Scripts
+# Check Point Harmony Endpoint API Scripts
 
-This repository contains PowerShell scripts for automating endpoint isolation/de-isolation operations and policy management for Check Point Harmony endpoints.
+This repository contains PowerShell scripts for automating Check Point Harmony Endpoint management via REST API, including endpoint operations and policy assignment analysis.
 
 ## 📂 Contents
 
-- **GetEndpoints.ps1** (now: **getendpoint.ps1**)
+### Core Scripts
+
+- **getendpoint.ps1** 
   - Authenticates against the Infinity Portal
   - Retrieves endpoints filtered by name
-  - Prints a table with columns: `ID`, `Name`, `IP`, `Status`, `Isolation`
+  - Displays endpoint information: ID, Name, IP, Status, Isolation state
 
 - **isolate-deisolate.ps1**
-  - Toggles isolation/de-isolation for a specified endpoint
-  - Waits for asynchronous remediation jobs to complete
-  - Shows endpoint status before and after the operation
+  - Toggles isolation/de-isolation for specified endpoints
+  - Handles asynchronous remediation jobs with polling
+  - Shows endpoint status before and after operations
 
-- **GetPolicyAssignments.ps1** ⭐ **NEW**
-  - Retrieves all policy rules from Harmony Endpoint
-  - For each policy rule, lists all entities (users, groups, OUs) to which it's assigned
-  - Provides detailed assignment information and summary statistics
-  - Supports both direct API calls and job-based operations
+- **GetPolicyAssignments.ps1** ✅ **WORKING FINAL VERSION**
+  - **NEW**: Successfully retrieves all policy rules and their assignments
+  - Lists every policy with detailed assignment information
+  - Supports CSV export for reporting and analysis
+  - Provides comprehensive statistics and summaries
 
 ## ⚙️ Prerequisites
 
 - **PowerShell 5.1** or newer
 - Account with permissions on **Check Point Infinity Portal**
-- API Key created in the Infinity Portal (service: **Endpoint**)
-- Rights to perform endpoint isolation and policy queries
+- API credentials (Client ID and Access Key) created in Infinity Portal
+- Rights to perform endpoint operations and policy queries
 
 ## 🔧 Configuration
 
-1. Copy the example credentials file:
-   ```powershell
-   cp credenziali.json.example credenziali.json
-   ```
+### 1. Credentials Setup
 
-2. Edit `credenziali.json` with your values:
-   ```json
-   {
-     "clientId": "<YourClientID>",
-     "accessKey": "<YourAccessKey>",
-     "gateway": "https://<your-infinity-gateway>"
-   }
-   ```
+Copy the example credentials file:
+```powershell
+cp credenziali.json.example credenziali.json
+```
 
-3. (Optional) Adjust internal script parameters:
-   - `$FilterName` – endpoint name or pattern
-   - `$PageSize`, `$PollInterval`, `$MaxPolls` – polling settings
+Edit `credenziali.json` with your actual values:
+```json
+{
+  "clientId": "<YourClientID>",
+  "accessKey": "<YourAccessKey>",
+  "gateway": "https://cloudinfra-gw.portal.checkpoint.com"
+}
+```
 
-## 🧭 Script Flow
+### 2. API Credentials Creation
 
-1. **Authenticate** - POST to `<gateway>/auth/external` with `clientId` and `accessKey`
-   - Receive bearer token
-2. **Cloud Login** - POST to `<gateway>/.../v1/session/login/cloud` with bearer token
-   - Receive `x-mgmt-api-token` header
-3. **API Operations** - Use management token for subsequent API calls
-4. **Job Management** - Handle asynchronous operations with polling
+1. Log into Check Point Infinity Portal
+2. Navigate to **Global Settings** → **API Keys**
+3. Create a new API Key for service: **Endpoint**
+4. Copy the Client ID and Access Key to your credentials file
 
 ## 🚀 Usage Examples
 
-### 1. GetEndpoints (getendpoint.ps1)
+### 1. Get Endpoint Information
 
 ```powershell
+# Get endpoints matching a name pattern
 .\getendpoint.ps1 -CredFile ".\credenziali.json" -FilterName "Win11-LAB"
 ```
 
-Retrieves and prints a table of endpoints whose names contain `Win11-LAB`.
+**Output:**
+```
+EndpointID      Hostname        IP              IsolationStatus Groups
+----------      --------        --              --------------- ------
+xxx-xxx-xxx     WIN11-LAB-01    192.168.1.100   Not Isolated   Domain Computers
+```
 
-### 2. Isolate/De-isolate Endpoint
+### 2. Isolate/De-isolate Endpoints
 
 ```powershell
+# Toggle isolation for endpoints matching pattern
 .\isolate-deisolate.ps1 -CredFile ".\credenziali.json" -FilterName "Win11-LAB"
 ```
 
-**Workflow**: Authenticate → Get endpoint status → Toggle isolation → Verify final state.
+**Workflow:** Authenticate → Get current status → Toggle isolation → Wait for completion → Verify final state
 
-### 3. Get Policy Assignments ⭐ **NEW**
+### 3. Get Policy Assignments ✅ **NEW & WORKING**
 
 ```powershell
+# Basic usage - display in console
 .\GetPolicyAssignments.ps1 -CredFile ".\credenziali.json"
-```
 
-**Features**:
-- Lists all policy rules in your Harmony Endpoint environment
-- Shows which entities (users, groups, OUs) each policy is assigned to
-- Provides summary statistics
-- Handles both direct API responses and job-based operations
-- Supports various rule types (Firewall, Anti-Malware, etc.)
+# Export results to CSV file
+.\GetPolicyAssignments.ps1 -CredFile ".\credenziali.json" -ExportCSV
 
-**Output Example**:
-```
-RuleID    RuleName                    RuleType     Domain   Assignments                           AssignmentCount
-------    --------                    --------     ------   -----------                           ---------------
-rule-001  Default Firewall Rule       Firewall     Global   No specific assignments (applies...   0
-rule-002  Sales Team Protection       Anti-Malware Global   Sales OU (ORGANIZATIONAL_UNIT); ...  2
-rule-003  Developer Workstations      Firewall     Global   Developers (AD_GROUP)                1
-```
-
-**Summary Information**:
-- Total number of rules
-- Rules with specific assignments vs. global rules
-- Rules grouped by type (Firewall, Anti-Malware, etc.)
-
-### 4. Advanced Parameters
-
-```powershell
 # Custom polling settings
-.\GetPolicyAssignments.ps1 -CredFile ".\credenziali.json" -PageSize 100 -PollInterval 3 -MaxPolls 20
+.\GetPolicyAssignments.ps1 -CredFile ".\credenziali.json" -PollInterval 3 -MaxPolls 20
 ```
+
+**Sample Output:**
+```
+PolicyName                          Family            AssignmentName        AssignmentType
+----------                          ------            --------------        --------------
+Default settings for entire org    Access            Entire Organization   ORGANIZATION_ROOT
+Server Protection                  Threat Prevention  Servers              VIRTUAL_GROUP
+SmartPreBoot                       Data Protection    PasswordlessPreboot  VIRTUAL_GROUP
+New Rule 1                         Deployment         TEST-VG              VIRTUAL_GROUP
+```
+
+**Features:**
+- 📋 **Complete Policy Inventory**: Lists all policy rules across all families
+- 🎯 **Assignment Details**: Shows exactly which users, groups, or OUs each policy applies to
+- 📊 **Rich Statistics**: Summary by family, assignment type, and top assignments
+- 📁 **CSV Export**: Optional export for reporting and analysis
+- 🔄 **Robust Operation**: Handles job-based API calls with automatic polling
 
 ## 🛠️ API Endpoints Used
 
+### Authentication Flow
+1. `POST /auth/external` - Initial authentication with clientId/accessKey
+2. `POST /app/endpoint-web-mgmt/harmony/endpoint/api/v1/session/login/cloud` - Cloud session login
+
 ### Policy Assignment Script
-- `GET /v1/policy/rule-metadata` - Retrieve all policy rules
-- `GET /v1/policy/rule-metadata/{ruleId}/assignments` - Get assignments for specific rule
-- `GET /v1/jobs/{jobId}` - Poll job status for async operations
+- `GET /app/endpoint-web-mgmt/harmony/endpoint/api/v1/policy/metadata` - Retrieve all policy rules metadata
+- `GET /app/endpoint-web-mgmt/harmony/endpoint/api/v1/jobs/{jobId}` - Poll job status for async operations
 
 ### Endpoint Management Scripts
-- `POST /v1/asset-management/computers/filtered` - Filter endpoints
-- `POST /v1/remediation/{action}` - Isolate/de-isolate operations
+- `POST /app/endpoint-web-mgmt/harmony/endpoint/api/v1/asset-management/computers/filtered` - Filter endpoints
+- `POST /app/endpoint-web-mgmt/harmony/endpoint/api/v1/remediation/{action}` - Isolation operations
 
-## 🛠️ Logging & Debug
+## 📊 Policy Assignment Analysis
 
-- `[INFO]` – Progress details, job IDs, statuses
-- `[SUCCESS]` – Completed operations, summaries
-- `[ERROR]` – Authentication errors, polling failures, rate limits
+The **GetPolicyAssignments.ps1** script provides comprehensive analysis:
 
-## 📊 Policy Assignment Features
+### Assignment Types
+- **ORGANIZATION_ROOT**: Policies applied to entire organization
+- **VIRTUAL_GROUP**: Policies applied to specific groups
+- **USER**: Policies applied to individual users (if configured)
+- **ORGANIZATIONAL_UNIT**: Policies applied to specific OUs (if configured)
 
-The new **GetPolicyAssignments.ps1** script provides:
+### Policy Families
+- **General Settings**: Basic endpoint configuration
+- **Threat Prevention**: Anti-malware, firewall, and security policies
+- **Data Protection**: Encryption and data security policies
+- **Access**: Authentication and access control policies
+- **Deployment**: Installation and deployment policies
+- **Agent Settings**: Endpoint agent configuration
+- **Data Loss Prevention**: DLP policies
+- **OneCheck**: Compliance and assessment policies
 
-1. **Comprehensive Policy Discovery**
-   - Retrieves all policy rules across all rule types
-   - Supports Firewall, Anti-Malware, Application Control, and other policy types
+### Statistics Provided
+- Total policy rules count
+- Rules with specific vs. global assignments
+- Distribution by policy family
+- Top assigned entities
+- Assignment type breakdown
 
-2. **Assignment Details**
-   - Shows specific users, groups, or organizational units assigned to each rule
-   - Differentiates between global rules and specifically assigned rules
-   - Displays assignment types (e.g., AD_GROUP, ORGANIZATIONAL_UNIT, USER)
+## 🐛 Troubleshooting
 
-3. **Flexible Operation Modes**
-   - Attempts direct API calls first for better performance
-   - Falls back to job-based operations for large datasets
-   - Handles API rate limiting and timeouts gracefully
+### Common Issues
 
-4. **Rich Output and Statistics**
-   - Tabular display with sorting and formatting
-   - Summary statistics and rule distribution
-   - Clear indication of rules that apply to all vs. specific assignments
+**Authentication Failures:**
+```
+[ERROR] Authentication failed: (401) Unauthorized
+```
+- Verify Client ID and Access Key are correct
+- Check that API key has Endpoint service permissions
+- Ensure gateway URL is correct
+
+**Policy API Issues:**
+```
+[ERROR] Failed to request policy metadata: (403) Forbidden
+```
+- Verify your account has policy read permissions
+- Check that you're using the correct tenant/organization
+
+**Job Polling Timeouts:**
+```
+[ERROR] Job did not complete within X attempts
+```
+- Increase `MaxPolls` parameter for large environments
+- Adjust `PollInterval` if API responses are slow
+
+### Debug Mode
+
+For detailed logging, you can modify the scripts to enable debug output by changing:
+```powershell
+#function Log($msg)    { Write-Host "[DEBUG] $msg" -ForegroundColor Cyan }
+```
+to:
+```powershell
+function Log($msg)    { Write-Host "[DEBUG] $msg" -ForegroundColor Cyan }
+```
+
+## 📈 Advanced Usage
+
+### Filtering Policy Results
+
+You can modify the script to filter by specific policy families:
+```powershell
+# Only show Threat Prevention policies
+$results | Where-Object { $_.Family -eq "Threat Prevention" }
+
+# Only show policies with specific assignments (not global)
+$results | Where-Object { $_.AssignmentType -ne "GLOBAL" }
+```
+
+### Automated Reporting
+
+Combine with scheduled tasks for regular policy auditing:
+```powershell
+# Weekly policy assignment report
+.\GetPolicyAssignments.ps1 -ExportCSV
+Send-MailMessage -To "admin@company.com" -Subject "Weekly Policy Report" -Attachments "PolicyAssignments_*.csv"
+```
 
 ## 🤝 Contributing
 
-Pull requests and issues are welcome!
+Contributions are welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Submit a pull request with clear description
 
-## 🔗 Related Resources
+## 📚 Related Resources
 
-- [Check Point Infinity Portal Administration Guide](https://sc1.checkpoint.com/documents/Infinity_Portal/WebAdminGuides/EN/Infinity-Portal-Admin-Guide/)
-- [Harmony Endpoint API Documentation](https://app.swaggerhub.com/apis/Check-Point/web-mgmt-external-api-production)
+- [Check Point Infinity Portal Documentation](https://sc1.checkpoint.com/documents/Infinity_Portal/WebAdminGuides/EN/Infinity-Portal-Admin-Guide/)
+- [Harmony Endpoint API Documentation](https://app.swaggerhub.com/apis/Check-Point/web-mgmt-external-api-production/1.9.221#/)
 - [Check Point API Reference](https://sc1.checkpoint.com/documents/latest/APIs/)
+- [Official Python SDK](https://github.com/CheckPointSW/harmony-endpoint-management-py-sdk)
+
+## 📋 Version History
+
+- **v3.0 (2025-10-10)**: Final working GetPolicyAssignments script with full functionality
+- **v2.0 (2025-10-10)**: Added policy assignment analysis capabilities
+- **v1.0**: Initial endpoint isolation/de-isolation scripts
 
 ---
 
 ## About
 
-Automation scripts for Check Point Harmony Endpoint management via REST API.
+**Repository**: Automation scripts for Check Point Harmony Endpoint management  
+**Language**: PowerShell 100.0%  
+**License**: Open source  
+**Maintainer**: MaxCere
 
-### Languages
-- PowerShell 100.0%
+### Key Features ✨
+
+- 🔐 **Secure Authentication**: Robust auth flow with error handling
+- 🎯 **Policy Analysis**: Complete visibility into policy assignments
+- 📊 **Rich Reporting**: Console output + CSV export options
+- 🔄 **Async Operations**: Handles job-based API calls properly
+- 🛡️ **Error Handling**: Comprehensive error detection and reporting
+- 📚 **Well Documented**: Clear usage examples and troubleshooting guides
