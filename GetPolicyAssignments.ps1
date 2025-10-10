@@ -5,7 +5,7 @@ param(
     [int]   $MaxPolls     = 30
 )
 
-$scriptRelease = "GetPolicyAssignments v1.0 (2025-10-10)"
+$scriptRelease = "GetPolicyAssignments v1.1 (2025-10-10)"
 
 # Logging functions
 function Log($msg)    { Write-Host "[INFO] $msg" -ForegroundColor Cyan }
@@ -54,8 +54,8 @@ function Wait-Job($jobId, $token, $mgmtToken, $gateway) {
 function Get-RuleAssignments($ruleId, $token, $mgmtToken, $gateway) {
     Log "Getting assignments for rule ID: $ruleId"
     
-    # Get rule assignments using the policy API
-    $assignmentsUrl = "$gateway/app/endpoint-web-mgmt/harmony/endpoint/api/v1/policy/rule-metadata/$ruleId/assignments"
+    # Try the assignment endpoint directly first
+    $assignmentsUrl = "$gateway/app/endpoint-web-mgmt/harmony/endpoint/api/v1/policy/rule/$ruleId/assignments"
     
     try {
         $resp = Invoke-WebRequest -Uri $assignmentsUrl -Method Get -Headers @{
@@ -64,9 +64,12 @@ function Get-RuleAssignments($ruleId, $token, $mgmtToken, $gateway) {
         } -ErrorAction Stop
         
         $assignments = ($resp.Content | ConvertFrom-Json)
+        if ($assignments.data) {
+            return $assignments.data
+        }
         return $assignments
     } catch {
-        # If direct assignment API fails, try to get assignments through job-based API
+        # If direct call fails, try with job
         Log "Direct assignment API failed, trying job-based approach..."
         
         try {
@@ -86,7 +89,7 @@ function Get-RuleAssignments($ruleId, $token, $mgmtToken, $gateway) {
                 }
             }
         } catch {
-            LogErr "Failed to get assignments for rule $ruleId : $($_.Exception.Message)"
+            Log "Assignment API not available for rule $ruleId"
             return @()
         }
     }
@@ -147,66 +150,110 @@ try {
     exit 1
 }
 
-# 4) Get all rules metadata
+# 4) Get all rules metadata - using correct endpoint
 Log "Retrieving all policy rules..."
-$rulesUrl = "$Gateway/app/endpoint-web-mgmt/harmony/endpoint/api/v1/policy/rule-metadata"
+$rulesUrl = "$Gateway/app/endpoint-web-mgmt/harmony/endpoint/api/v1/policy/rules"
 
+# First try direct API call
 try {
-    # First try without job
     $rulesResp = Invoke-WebRequest -Uri $rulesUrl -Method Get -Headers @{
         Authorization      = "Bearer $token"
         "x-mgmt-api-token" = $mgmtToken
     } -ErrorAction Stop
     
     $rulesData = ($rulesResp.Content | ConvertFrom-Json)
+    Log "Retrieved rules data directly"
 } catch {
-    # If direct call fails, try with job
+    # If direct call fails, try with job-based approach
     Log "Direct rules API failed, trying job-based approach..."
     
     try {
-        $jobResp = Invoke-WebRequest -Uri $rulesUrl -Method Get -Headers @{
+        $jobResp = Invoke-WebRequest -Uri $rulesUrl -Method Post -Headers @{
             Authorization       = "Bearer $token"
             "x-mgmt-api-token"  = $mgmtToken
             "x-mgmt-run-as-job" = "on"
-        } -ErrorAction Stop
+        } -Body '{}' -ContentType 'application/json' -ErrorAction Stop
         
         $jobJson = $jobResp.Content | ConvertFrom-Json
         $jobId = $jobJson.jobId
         
         if (-not $jobId) {
-            LogErr "No job ID returned for rules metadata request"
+            LogErr "No job ID returned for rules request"
             exit 1
         }
         
         $jobResult = Wait-Job -jobId $jobId -token $token -mgmtToken $mgmtToken -gateway $gateway
         
         if (-not $jobResult -or -not $jobResult.data) {
-            LogErr "Failed to get rules metadata from job"
+            LogErr "Failed to get rules from job"
             exit 1
         }
         
         $rulesData = $jobResult.data
+        Log "Retrieved rules data via job"
     } catch {
-        LogErr "Failed to get rules metadata: $($_.Exception.Message)"
-        if ($_.Exception.Response) { 
-            LogErr (ReadBody($_.Exception.Response.GetResponseStream())) 
+        # Try alternative endpoint for policy rule metadata
+        Log "Trying alternative policy endpoint..."
+        
+        try {
+            $altUrl = "$Gateway/app/endpoint-web-mgmt/harmony/endpoint/api/v1/policy"
+            $altResp = Invoke-WebRequest -Uri $altUrl -Method Get -Headers @{
+                Authorization      = "Bearer $token"
+                "x-mgmt-api-token" = $mgmtToken
+            } -ErrorAction Stop
+            
+            $rulesData = ($altResp.Content | ConvertFrom-Json)
+            Log "Retrieved policy data from alternative endpoint"
+        } catch {
+            LogErr "All policy API endpoints failed: $($_.Exception.Message)"
+            if ($_.Exception.Response) { 
+                LogErr (ReadBody($_.Exception.Response.GetResponseStream())) 
+            }
+            exit 1
         }
-        exit 1
     }
 }
 
-# Process rules data
+# Process rules data - handle different response formats
 $rules = @()
-if ($rulesData.rules) {
+if ($rulesData.data -and $rulesData.data.rules) {
+    $rules = $rulesData.data.rules
+} elseif ($rulesData.rules) {
     $rules = $rulesData.rules
+} elseif ($rulesData.data -and $rulesData.data -is [array]) {
+    $rules = $rulesData.data
 } elseif ($rulesData -is [array]) {
     $rules = $rulesData
 } else {
-    $rules = @($rulesData)
+    # Try to find rules in any nested property
+    $properties = $rulesData | Get-Member -MemberType NoteProperty
+    foreach ($prop in $properties) {
+        if ($prop.Name -like "*rule*" -and $rulesData.($prop.Name) -is [array]) {
+            $rules = $rulesData.($prop.Name)
+            Log "Found rules in property: $($prop.Name)"
+            break
+        }
+    }
 }
 
 if ($rules.Count -eq 0) {
     LogErr "No rules found in the response"
+    Log "Response structure: $(ConvertTo-Json $rulesData -Depth 2)"
+    
+    # Try to list available policy components
+    try {
+        $componentsUrl = "$Gateway/app/endpoint-web-mgmt/harmony/endpoint/api/v1/policy/components"
+        $compResp = Invoke-WebRequest -Uri $componentsUrl -Method Get -Headers @{
+            Authorization      = "Bearer $token"
+            "x-mgmt-api-token" = $mgmtToken
+        } -ErrorAction Stop
+        
+        $components = ($compResp.Content | ConvertFrom-Json)
+        Log "Available policy components: $(ConvertTo-Json $components -Depth 2)"
+    } catch {
+        Log "Could not retrieve policy components"
+    }
+    
     exit 1
 }
 
@@ -217,12 +264,39 @@ Log "=" * 60
 $results = @()
 
 foreach ($rule in $rules) {
-    $ruleId = $rule.uid
-    $ruleName = $rule.name
-    $ruleType = $rule.type
-    $domain = if ($rule.domain) { $rule.domain.name } else { "Global" }
+    # Handle different rule ID field names
+    $ruleId = $null
+    $ruleName = "Unknown"
+    $ruleType = "Unknown"
+    $domain = "Global"
     
-    Log "Processing rule: '$ruleName' (ID: $ruleId)"
+    # Try different possible field names for rule ID
+    if ($rule.uid) { $ruleId = $rule.uid }
+    elseif ($rule.id) { $ruleId = $rule.id }
+    elseif ($rule.rule_id) { $ruleId = $rule.rule_id }
+    elseif ($rule.ruleId) { $ruleId = $rule.ruleId }
+    
+    # Try different possible field names for rule name
+    if ($rule.name) { $ruleName = $rule.name }
+    elseif ($rule.rule_name) { $ruleName = $rule.rule_name }
+    elseif ($rule.ruleName) { $ruleName = $rule.ruleName }
+    
+    # Try different possible field names for rule type
+    if ($rule.type) { $ruleType = $rule.type }
+    elseif ($rule.rule_type) { $ruleType = $rule.rule_type }
+    elseif ($rule.ruleType) { $ruleType = $rule.ruleType }
+    elseif ($rule.family) { $ruleType = $rule.family }
+    
+    # Try different possible field names for domain
+    if ($rule.domain -and $rule.domain.name) { $domain = $rule.domain.name }
+    elseif ($rule.domain -and $rule.domain -is [string]) { $domain = $rule.domain }
+    
+    if (-not $ruleId) {
+        Log "Skipping rule without valid ID: $(ConvertTo-Json $rule -Depth 1)"
+        continue
+    }
+    
+    Log "Processing rule: '$ruleName' (ID: $ruleId, Type: $ruleType)"
     
     # Get assignments for this rule
     $assignments = Get-RuleAssignments -ruleId $ruleId -token $token -mgmtToken $mgmtToken -gateway $gateway
@@ -258,20 +332,24 @@ Log "=" * 60
 LogSuccess "Policy Rules and Their Assignments:"
 Log "=" * 60
 
-$results | Sort-Object RuleType, RuleName | Format-Table -AutoSize -Wrap
+if ($results.Count -gt 0) {
+    $results | Sort-Object RuleType, RuleName | Format-Table -AutoSize -Wrap
 
-# Summary
-Log "=" * 60
-LogSuccess "Summary:"
-Log "Total Rules: $($results.Count)"
-Log "Rules with specific assignments: $(($results | Where-Object { $_.AssignmentCount -gt 0 }).Count)"
-Log "Rules applying to all (no specific assignments): $(($results | Where-Object { $_.AssignmentCount -eq 0 }).Count)"
+    # Summary
+    Log "=" * 60
+    LogSuccess "Summary:"
+    Log "Total Rules: $($results.Count)"
+    Log "Rules with specific assignments: $(($results | Where-Object { $_.AssignmentCount -gt 0 }).Count)"
+    Log "Rules applying to all (no specific assignments): $(($results | Where-Object { $_.AssignmentCount -eq 0 }).Count)"
 
-# Group by rule type
-$rulesByType = $results | Group-Object RuleType
-foreach ($group in $rulesByType) {
-    Log "$($group.Name): $($group.Count) rules"
+    # Group by rule type
+    $rulesByType = $results | Group-Object RuleType
+    foreach ($group in $rulesByType) {
+        Log "$($group.Name): $($group.Count) rules"
+    }
+} else {
+    LogErr "No valid rules were processed"
 }
 
 Log "=" * 60
-LogSuccess "Script completed successfully - $scriptRelease"
+LogSuccess "Script completed - $scriptRelease"
