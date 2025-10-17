@@ -1,5 +1,5 @@
 Param(
-    [string]$CredFile = ".\credenziali.json.mbe",
+    [string]$CredFile = ".\credenziali.json",
     [string]$CSVFile = ".\VirtualGroupUsage.csv"
 )
 
