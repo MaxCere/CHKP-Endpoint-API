@@ -160,55 +160,10 @@ Policy families using Virtual Groups:
   - Detailed report with all policy assignments
   - Summary report with Virtual Group statistics
 - 🎯 **Policy Family Insights**: Shows how different policy types use Virtual Groups
-## 📊 Policy Assignment Analysis
 
-The **GetPolicyAssignments.ps1** script provides comprehensive analysis:
-
-### Assignment Types
-- **ORGANIZATION_ROOT**: Policies applied to entire organization
-- **VIRTUAL_GROUP**: Policies applied to specific groups
-- **USER**: Policies applied to individual users (if configured)
-- **ORGANIZATIONAL_UNIT**: Policies applied to specific OUs (if configured)
-
-### Policy Families
-- **General Settings**: Basic endpoint configuration
-- **Threat Prevention**: Anti-malware, firewall, and security policies
-- **Data Protection**: Encryption and data security policies
-- **Access**: Authentication and access control policies
-- **Deployment**: Installation and deployment policies
-- **Agent Settings**: Endpoint agent configuration
-- **Data Loss Prevention**: DLP policies
-- **OneCheck**: Compliance and assessment policies
-
-### Statistics Provided
-- Total policy rules count
-- Rules with specific vs. global assignments
-- Distribution by policy family
-- Top assigned entities
-- Assignment type breakdown
-
-## 🔍 Virtual Group Analysis
-
-The **GetVirtualGroupUsage.ps1** script provides specialized Virtual Group insights:
-
-### Analysis Features
-- **Complete Virtual Group Inventory**: Lists all Virtual Groups referenced in policies
-- **Policy Distribution**: Shows how many policies each Virtual Group has
-- **Family Breakdown**: Identifies which policy families use Virtual Groups most
-- **Usage Patterns**: Reveals Virtual Group utilization across the organization
-
-### Export Files
-1. **Main Report** (`VirtualGroupUsage.csv`): Detailed list of all Virtual Group-Policy relationships
-2. **Summary Report** (`VirtualGroupUsage_Summary.csv`): Aggregated statistics per Virtual Group
-
-### Use Cases
-- **Compliance Auditing**: Verify Virtual Group policy assignments
-- **Cleanup Operations**: Identify unused or over-utilized Virtual Groups
-- **Policy Planning**: Understand current Virtual Group distribution before changes
-- **Security Review**: Ensure proper policy coverage across groups
 ## 🛠️ API Endpoints Used
 
-Below are the endpoints used, including required headers and request bodies.
+Below are the endpoints used, including required headers, request bodies, and sample responses.
 
 ### 1) Authentication
 - Endpoint: `POST /auth/external`
@@ -219,6 +174,15 @@ Below are the endpoints used, including required headers and request bodies.
   {
     "clientId": "<ClientID>",
     "accessKey": "<AccessKey>"
+  }
+  ```
+- Sample Response:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "token": "<jwt-token>"
+    }
   }
   ```
 
