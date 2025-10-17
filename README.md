@@ -109,13 +109,6 @@ SmartPreBoot                       Data Protection    PasswordlessPreboot  VIRTU
 New Rule 1                         Deployment         TEST-VG              VIRTUAL_GROUP
 ```
 
-**Features:**
-- 📋 **Complete Policy Inventory**: Lists all policy rules across all families
-- 🎯 **Assignment Details**: Shows exactly which users, groups, or OUs each policy applies to
-- 📊 **Rich Statistics**: Summary by family, assignment type, and top assignments
-- 📁 **CSV Export**: Optional export for reporting and analysis
-- 🔄 **Robust Operation**: Handles job-based API calls with automatic polling
-
 ### 4. Analyze Virtual Group Usage ✅ **NEW VIRTUAL GROUP ANALYSIS**
 
 ```powershell
@@ -151,15 +144,6 @@ Policy families using Virtual Groups:
   - Access: 2 assignments
   - Data Protection: 1 assignments
 ```
-
-**Features:**
-- 🔍 **Virtual Group Discovery**: Identifies all Virtual Groups used in policies
-- 📈 **Usage Analysis**: Shows which policies are assigned to each Virtual Group
-- 📊 **Comprehensive Statistics**: Policy count per Virtual Group and family distribution
-- 📁 **Dual CSV Export**: 
-  - Detailed report with all policy assignments
-  - Summary report with Virtual Group statistics
-- 🎯 **Policy Family Insights**: Shows how different policy types use Virtual Groups
 
 ## 🛠️ API Endpoints Used
 
