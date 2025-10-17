@@ -113,10 +113,10 @@ New Rule 1                         Deployment         TEST-VG              VIRTU
 
 ```powershell
 # Basic usage - analyze Virtual Group usage
-.\GetVirtualGroupUsage.ps1 -CredFile ".\credenziali.json.mbe"
+.\GetVirtualGroupUsage.ps1 -CredFile ".\credenziali.json"
 
 # Custom CSV output location
-.\GetVirtualGroupUsage.ps1 -CredFile ".\credenziali.json.mbe" -CSVFile ".\MyVGReport.csv"
+.\GetVirtualGroupUsage.ps1 -CredFile ".\credenziali.json" -CSVFile ".\MyVGReport.csv"
 ```
 
 **Sample Output:**
