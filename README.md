@@ -349,13 +349,3 @@ Contributions are welcome! Please:
 **Language**: PowerShell 100.0%  
 **License**: Open source  
 **Maintainer**: MaxCere
-
-### Key Features ✨
-
-- 🔐 **Secure Authentication**: Robust auth flow with error handling
-- 🎯 **Policy Analysis**: Complete visibility into policy assignments
-- 🔍 **Virtual Group Insights**: Detailed Virtual Group usage analysis
-- 📊 **Rich Reporting**: Console output + CSV export options
-- 🔄 **Async Operations**: Handles job-based API calls properly
-- 🛡️ **Error Handling**: Comprehensive error detection and reporting
-- 📚 **Well Documented**: Clear usage examples and troubleshooting guides
