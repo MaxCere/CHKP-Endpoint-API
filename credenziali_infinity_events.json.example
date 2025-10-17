@@ -1,0 +1,18 @@
+﻿{
+    "clientId":  "<CLIENTID>",
+    "accessKey":  "<ACCESSKEY>",
+    "gateway":  "https://cloudinfra-gw.portal.checkpoint.com",
+    "_comment_gateway_options":  {
+                                     "Europe":  "https://cloudinfra-gw.portal.checkpoint.com",
+                                     "US":  "https://cloudinfra-gw-us.portal.checkpoint.com",
+                                     "Australia":  "https://cloudinfra-gw.ap.portal.checkpoint.com",
+                                     "UAE":  "https://cloudinfra-gw.ae.portal.checkpoint.com",
+                                     "India":  "https://cloudinfra-gw.in.portal.checkpoint.com"
+                                 },
+    "_comment_api_key_setup":  {
+                                   "service_required":  "Logs as a Service",
+                                   "old_service_deprecated":  "Infinity Events (will cause 401 errors)",
+                                   "creation_path":  "Infinity Portal \u003e Global Settings \u003e API Keys",
+                                   "permissions_needed":  "Read access to event logs"
+                               }
+}
