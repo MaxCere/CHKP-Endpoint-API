@@ -163,17 +163,98 @@ Policy families using Virtual Groups:
 
 ## 🛠️ API Endpoints Used
 
-### Authentication Flow
-1. `POST /auth/external` - Initial authentication with clientId/accessKey
-2. `POST /app/endpoint-web-mgmt/harmony/endpoint/api/v1/session/login/cloud` - Cloud session login
+Below are the endpoints used, including required headers and request bodies.
 
-### Policy Analysis Scripts
-- `GET /app/endpoint-web-mgmt/harmony/endpoint/api/v1/policy/metadata` - Retrieve all policy rules metadata
-- `GET /app/endpoint-web-mgmt/harmony/endpoint/api/v1/jobs/{jobId}` - Poll job status for async operations
+### 1) Authentication
+- Endpoint: `POST /auth/external`
+- Headers:
+  - `Content-Type: application/json`
+- Request Body:
+  ```json
+  {
+    "clientId": "<ClientID>",
+    "accessKey": "<AccessKey>"
+  }
+  ```
 
-### Endpoint Management Scripts
-- `POST /app/endpoint-web-mgmt/harmony/endpoint/api/v1/asset-management/computers/filtered` - Filter endpoints
-- `POST /app/endpoint-web-mgmt/harmony/endpoint/api/v1/remediation/{action}` - Isolation operations
+### 2) Cloud Session Login
+- Endpoint: `POST /app/endpoint-web-mgmt/harmony/endpoint/api/v1/session/login/cloud`
+- Headers:
+  - `Authorization: Bearer <token>`
+  - `Content-Type: application/json`
+- Request Body:
+  ```json
+  {}
+  ```
+- Response Headers:
+  - `x-mgmt-api-token: <mgmt-token>`
+
+### 3) Policy Metadata (job-based)
+- Endpoint: `GET /app/endpoint-web-mgmt/harmony/endpoint/api/v1/policy/metadata`
+- Headers:
+  - `Authorization: Bearer <token>`
+  - `x-mgmt-api-token: <mgmt-token>`
+  - `x-mgmt-run-as-job: on`
+
+### 4) Job Status Polling
+- Endpoint: `GET /app/endpoint-web-mgmt/harmony/endpoint/api/v1/jobs/{jobId}`
+- Headers:
+  - `Authorization: Bearer <token>`
+  - `x-mgmt-api-token: <mgmt-token>`
+
+### 5) Filter Endpoints (job-based)
+- Endpoint: `POST /app/endpoint-web-mgmt/harmony/endpoint/api/v1/asset-management/computers/filtered`
+- Headers:
+  - `Authorization: Bearer <token>`
+  - `x-mgmt-api-token: <mgmt-token>`
+  - `x-mgmt-run-as-job: on`
+  - `Content-Type: application/json`
+- Request Body:
+  ```json
+  {
+    "filters": [
+      {
+        "columnName": "computerName",
+        "filterValues": ["COMPUTERNAME"],
+        "filterType": "Contains"
+      }
+    ],
+    "paging": { "pageSize": 10, "offset": 0 }
+  }
+  ```
+
+### 6) Remediation (isolate / de-isolate) (job-based)
+- Endpoint: `POST /app/endpoint-web-mgmt/harmony/endpoint/api/v1/remediation/{action}`
+- Headers:
+  - `Authorization: Bearer <token>`
+  - `x-mgmt-api-token: <mgmt-token>`
+  - `x-mgmt-run-as-job: on`
+  - `Content-Type: application/json`
+- Request Body (example):
+  ```json
+  {
+    "comment": "Isolate via script",
+    "timing": {
+      "expirationSeconds": 1,
+      "schedulingDateTime": "2025-10-17T14:30:00.000Z"
+    },
+    "targets": {
+      "query": {
+        "filter": [
+          {
+            "columnName": "emonJsonDataColumns",
+            "filterValues": ["string"],
+            "filterType": "Contains",
+            "isJson": true
+          }
+        ],
+        "paging": { "pageSize": 1, "offset": 0 }
+      },
+      "exclude": { "groupsIds": [], "computerIds": [] },
+      "include": { "computers": [ { "id": "<endpoint-id>" } ] }
+    }
+  }
+  ```
 
 ## 📊 Policy Assignment Analysis
 
@@ -302,10 +383,10 @@ Contributions are welcome! Please:
 
 ## 📚 Related Resources
 
-- [Check Point Infinity Portal Documentation](https://sc1.checkpoint.com/documents/Infinity_Portal/WebAdminGuides/EN/Infinity-Portal-Admin-Guide/)
-- [Harmony Endpoint API Documentation](https://app.swaggerhub.com/apis/Check-Point/web-mgmt-external-api-production/1.9.221#/)
-- [Check Point API Reference](https://sc1.checkpoint.com/documents/latest/APIs/)
-- [Official Python SDK](https://github.com/CheckPointSW/harmony-endpoint-management-py-sdk)
+- Check Point Infinity Portal Documentation
+- Harmony Endpoint API Documentation
+- Check Point API Reference
+- Official Python SDK
 
 ## 📋 Version History
 
