@@ -1,6 +1,6 @@
 # Check Point Harmony Endpoint API Scripts
 
-This repository contains PowerShell scripts for automating Check Point Harmony Endpoint management via REST API, including endpoint operations and policy assignment analysis.
+This repository contains PowerShell scripts for automating Check Point Harmony Endpoint management via REST API, including endpoint operations, policy assignment analysis, and Infinity Events log retrieval.
 
 ## 📂 Contents
 
@@ -29,16 +29,31 @@ This repository contains PowerShell scripts for automating Check Point Harmony E
   - Exports detailed CSV reports for analysis
   - Shows policy distribution across Virtual Groups
 
+- **GetInfinityEvents.ps1** ✅ **NEW LOGS & EVENTS RETRIEVAL**
+  - **NEW**: Retrieves event logs from Check Point Infinity Events API
+  - Supports all Check Point products (Harmony Endpoint, Connect, Mobile, etc.)
+  - Advanced filtering with Lucene syntax and time ranges
+  - Robust pagination handling with error recovery
+  - CSV export functionality with detailed statistics
+  - Automatic credentials detection and gateway optimization
+
+- **TestInfinityEventsAPI.ps1** ✅ **NEW DEBUGGING TOOL**
+  - **NEW**: Advanced debugging script for Infinity Events API
+  - Tests multiple query formats to identify working configurations
+  - Multi-region gateway testing (Europe, US)
+  - Automatic gateway detection and credentials update
+  - Comprehensive error diagnosis and troubleshooting
+
 ## ⚙️ Prerequisites
 
 - **PowerShell 5.1** or newer
 - Account with permissions on **Check Point Infinity Portal**
 - API credentials (Client ID and Access Key) created in Infinity Portal
-- Rights to perform endpoint operations and policy queries
+- Rights to perform endpoint operations, policy queries, and log access
 
 ## 🔧 Configuration
 
-### 1. Credentials Setup
+### 1. Credentials Setup for Endpoint Management
 
 Copy the example credentials file:
 ```powershell
@@ -54,12 +69,27 @@ Edit `credenziali.json` with your actual values:
 }
 ```
 
-### 2. API Credentials Creation
+### 2. Infinity Events API Setup (for GetInfinityEvents.ps1)
+
+Create a separate credentials file for Events API:
+```json
+{
+  "clientId": "<YourClientID>",
+  "accessKey": "<YourAccessKey>",
+  "gateway": "https://cloudinfra-gw.portal.checkpoint.com"
+}
+```
+
+**Note**: For Infinity Events, create API Key for service: **"Logs as a Service"**
+
+### 3. API Credentials Creation
 
 1. Log into Check Point Infinity Portal
 2. Navigate to **Global Settings** → **API Keys**
-3. Create a new API Key for service: **Endpoint**
-4. Copy the Client ID and Access Key to your credentials file
+3. Create API Keys for required services:
+   - **Endpoint** - for endpoint management scripts
+   - **Logs as a Service** - for Infinity Events scripts
+4. Copy the Client ID and Access Key to your credentials files
 
 ## 🚀 Usage Examples
 
@@ -143,6 +173,68 @@ Policy families using Virtual Groups:
   - Deployment: 2 assignments
   - Access: 2 assignments
   - Data Protection: 1 assignments
+```
+
+### 5. Get Infinity Events ✅ **NEW LOGS RETRIEVAL**
+
+```powershell
+# Basic usage - retrieve last hour events (API default)
+.\GetInfinityEvents.ps1
+
+# Retrieve events for specific product
+.\GetInfinityEvents.ps1 -CloudService "Harmony Endpoint"
+
+# Advanced filtering with time range
+.\GetInfinityEvents.ps1 -StartTime "2025-10-15T00:00:00Z" -EndTime "2025-10-17T23:59:59Z" -Filter 'severity:"High"'
+
+# Export to CSV with custom limits
+.\GetInfinityEvents.ps1 -Limit 500 -Filter 'NOT severity:"Low"' -ExportCSV
+
+# Complex filtering examples
+.\GetInfinityEvents.ps1 -Filter 'src:"192.168.1.100" AND severity:"Critical"' -ExportCSV
+.\GetInfinityEvents.ps1 -Filter 'product:"Harmony Endpoint" OR product:"Harmony Connect"'
+```
+
+**Sample Output:**
+```
+[17:30:15] Credenziali caricate da: credenziali_infinity_events.json
+[17:30:16] [SUCCESS] Autenticazione completata con successo
+[17:30:16] Task di ricerca creato: abc-123-def-456
+[17:30:21] Task completato
+[17:30:22] Recuperati 150 record da questa pagina
+[17:30:22] [SUCCESS] Totale record recuperati: 150
+
+=== STATISTICHE PER SEVERITY ===
+Critical: 25 eventi
+High: 45 eventi  
+Medium: 60 eventi
+Low: 20 eventi
+
+=== STATISTICHE PER PRODOTTO ===
+Harmony Endpoint: 120 eventi
+Harmony Connect: 30 eventi
+```
+
+### 6. Test and Debug Infinity Events API ✅ **NEW TROUBLESHOOTING**
+
+```powershell
+# Test API connectivity and find working configuration
+.\TestInfinityEventsAPI.ps1
+
+# Test with specific credentials file
+.\TestInfinityEventsAPI.ps1 -CredFile ".\my_events_credentials.json"
+```
+
+**Sample Output:**
+```
+[17:30:10] === TEST Europe - https://cloudinfra-gw.portal.checkpoint.com ===
+[17:30:11] [SUCCESS] Europe - Autenticazione riuscita
+[17:30:11] Testando: Query minimale senza timeframe...
+[17:30:12] [SUCCESS] SUCCESS! Task ID: xyz-789-abc-123
+[17:30:15] [SUCCESS] QUERY FUNZIONANTE TROVATA ===
+[17:30:15] [SUCCESS] Region: Europe
+[17:30:15] [SUCCESS] Query tipo: Query minimale senza timeframe
+[17:30:15] [SUCCESS] SUCCESS! L'API funziona correttamente!
 ```
 
 ## 🛠️ API Endpoints Used
@@ -249,6 +341,43 @@ Below are the endpoints used, including required headers, request bodies, and sa
   }
   ```
 
+### 7) Infinity Events Query Creation
+- Endpoint: `POST /app/laas-logs-api/api/logs_query`
+- Headers:
+  - `Authorization: Bearer <token>`
+  - `Content-Type: application/json`
+- Request Body:
+  ```json
+  {
+    "limit": 1000,
+    "pageLimit": 100,
+    "filter": "severity:\"High\"",
+    "cloudService": "Harmony Endpoint",
+    "timeframe": {
+      "startTime": "2025-10-15T00:00:00Z",
+      "endTime": "2025-10-17T23:59:59Z"
+    }
+  }
+  ```
+
+### 8) Infinity Events Task Status
+- Endpoint: `GET /app/laas-logs-api/api/logs_query/{taskId}`
+- Headers:
+  - `Authorization: Bearer <token>`
+
+### 9) Infinity Events Results Retrieval
+- Endpoint: `POST /app/laas-logs-api/api/logs_query/retrieve`
+- Headers:
+  - `Authorization: Bearer <token>`
+  - `Content-Type: application/json`
+- Request Body:
+  ```json
+  {
+    "taskId": "<task-id>",
+    "pageToken": "<page-token>"
+  }
+  ```
+
 ## 🐛 Troubleshooting
 
 ### Common Issues
@@ -258,8 +387,10 @@ Below are the endpoints used, including required headers, request bodies, and sa
 [ERROR] Authentication failed: (401) Unauthorized
 ```
 - Verify Client ID and Access Key are correct
-- Check that API key has Endpoint service permissions
-- Ensure gateway URL is correct
+- Check that API key has correct service permissions:
+  - **Endpoint** service for endpoint management
+  - **Logs as a Service** for Infinity Events
+- Ensure gateway URL is correct for your region
 
 **Policy API Issues:**
 ```
@@ -275,6 +406,34 @@ Below are the endpoints used, including required headers, request bodies, and sa
 - Increase `MaxPolls` parameter for large environments
 - Adjust `PollInterval` if API responses are slow
 
+**Infinity Events API Issues:**
+```
+[ERROR] Errore 400 Bad Request durante creazione task
+```
+- Verify timeframe is not too wide (max 30 days recommended)
+- Check Lucene filter syntax (use quotes for exact matches)
+- Try without timeframe to use default (last hour)
+- Ensure API Key has "Logs as a Service" permissions
+- Use TestInfinityEventsAPI.ps1 for detailed debugging
+
+**No Events Retrieved:**
+```
+[SUCCESS] Totale record recuperati: 0
+```
+- Check if Check Point products are sending logs to Infinity Portal
+- Verify account has access to Events section in portal
+- Try broader timeframe or remove filters
+- Use TestInfinityEventsAPI.ps1 to test connectivity
+- Check that products are properly configured and active
+
+**Pagination Errors:**
+```
+[WARNING] Errore 400 Bad Request durante il recupero pagina
+```
+- Normal behavior when reaching end of available data
+- Script automatically handles pagination errors and continues
+- Consider reducing `PageLimit` if persistent issues occur
+
 ### Debug Mode
 
 For detailed logging, you can modify the scripts to enable debug output by changing:
@@ -286,10 +445,34 @@ to:
 function Log($msg)    { Write-Host "[DEBUG] $msg" -ForegroundColor Cyan }
 ```
 
+### Lucene Filter Examples for Infinity Events
+
+```powershell
+# Severity filtering
+-Filter 'severity:"Critical"'
+-Filter 'severity:"High" OR severity:"Critical"'
+-Filter 'NOT severity:"Low"'
+
+# Source IP filtering  
+-Filter 'src:"192.168.1.100"'
+-Filter 'src:"192.168.1.*"'
+
+# Product filtering
+-Filter 'product:"Harmony Endpoint"'
+
+# Combined filters
+-Filter 'severity:"High" AND src:"192.168.1.100"'
+-Filter '(severity:"Critical" OR severity:"High") AND product:"Harmony Endpoint"'
+
+# Date range with filter (alternative to StartTime/EndTime)
+-Filter '@timestamp:[2025-10-15T00:00:00Z TO 2025-10-17T23:59:59Z] AND severity:"High"'
+```
+
 ## 📚 Related Resources
 
 - Check Point Infinity Portal Documentation
-- Harmony Endpoint API Documentation
+- Harmony Endpoint API Documentation  
+- Infinity Events API Documentation
 - Check Point API Reference
+- Lucene Query Syntax Guide
 - Official Python SDK
-
