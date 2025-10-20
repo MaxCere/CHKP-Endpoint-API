@@ -286,47 +286,6 @@ to:
 function Log($msg)    { Write-Host "[DEBUG] $msg" -ForegroundColor Cyan }
 ```
 
-## 📈 Advanced Usage
-
-### Filtering Policy Results
-
-You can modify the script to filter by specific policy families:
-```powershell
-# Only show Threat Prevention policies
-$results | Where-Object { $_.Family -eq "Threat Prevention" }
-
-# Only show policies with specific assignments (not global)
-$results | Where-Object { $_.AssignmentType -ne "GLOBAL" }
-```
-
-### Virtual Group Analysis
-
-Filter Virtual Group results for specific analysis:
-```powershell
-# Show only Virtual Groups with multiple policies
-$results | Where-Object { $_.TotalPoliciesInVG -gt 1 }
-
-# Focus on specific policy families
-$results | Where-Object { $_.PolicyFamily -eq "Threat Prevention" }
-```
-
-### Automated Reporting
-
-Combine with scheduled tasks for regular policy auditing:
-```powershell
-# Weekly policy assignment report
-.\GetPolicyAssignments.ps1 -ExportCSV
-.\GetVirtualGroupUsage.ps1 -CSVFile "Weekly_VG_Report.csv"
-Send-MailMessage -To "admin@company.com" -Subject "Weekly Policy Report" -Attachments "PolicyAssignments_*.csv","Weekly_VG_Report*.csv"
-```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request with clear description
-
 ## 📚 Related Resources
 
 - Check Point Infinity Portal Documentation
@@ -334,18 +293,3 @@ Contributions are welcome! Please:
 - Check Point API Reference
 - Official Python SDK
 
-## 📋 Version History
-
-- **v4.0 (2025-10-10)**: Added GetVirtualGroupUsage.ps1 for Virtual Group analysis
-- **v3.0 (2025-10-10)**: Final working GetPolicyAssignments script with full functionality
-- **v2.0 (2025-10-10)**: Added policy assignment analysis capabilities
-- **v1.0**: Initial endpoint isolation/de-isolation scripts
-
----
-
-## About
-
-**Repository**: Automation scripts for Check Point Harmony Endpoint management  
-**Language**: PowerShell 100.0%  
-**License**: Open source  
-**Maintainer**: MaxCere
