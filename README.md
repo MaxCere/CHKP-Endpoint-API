@@ -239,9 +239,11 @@ Harmony Connect: 30 eventi
 
 ## 🛠️ API Endpoints Used
 
-Below are the endpoints used, including required headers, request bodies, and sample responses.
+### Harmony Endpoint Management API
 
-### 1) Authentication
+Below are the endpoints used for endpoint management, policy queries, and virtual group analysis:
+
+#### 1) Authentication
 - Endpoint: `POST /auth/external`
 - Headers:
   - `Content-Type: application/json`
@@ -262,7 +264,7 @@ Below are the endpoints used, including required headers, request bodies, and sa
   }
   ```
 
-### 2) Cloud Session Login
+#### 2) Cloud Session Login
 - Endpoint: `POST /app/endpoint-web-mgmt/harmony/endpoint/api/v1/session/login/cloud`
 - Headers:
   - `Authorization: Bearer <token>`
@@ -274,20 +276,20 @@ Below are the endpoints used, including required headers, request bodies, and sa
 - Response Headers:
   - `x-mgmt-api-token: <mgmt-token>`
 
-### 3) Policy Metadata (job-based)
+#### 3) Policy Metadata (job-based)
 - Endpoint: `GET /app/endpoint-web-mgmt/harmony/endpoint/api/v1/policy/metadata`
 - Headers:
   - `Authorization: Bearer <token>`
   - `x-mgmt-api-token: <mgmt-token>`
   - `x-mgmt-run-as-job: on`
 
-### 4) Job Status Polling
+#### 4) Job Status Polling
 - Endpoint: `GET /app/endpoint-web-mgmt/harmony/endpoint/api/v1/jobs/{jobId}`
 - Headers:
   - `Authorization: Bearer <token>`
   - `x-mgmt-api-token: <mgmt-token>`
 
-### 5) Filter Endpoints (job-based)
+#### 5) Filter Endpoints (job-based)
 - Endpoint: `POST /app/endpoint-web-mgmt/harmony/endpoint/api/v1/asset-management/computers/filtered`
 - Headers:
   - `Authorization: Bearer <token>`
@@ -308,7 +310,7 @@ Below are the endpoints used, including required headers, request bodies, and sa
   }
   ```
 
-### 6) Remediation (isolate / de-isolate) (job-based)
+#### 6) Remediation (isolate / de-isolate) (job-based)
 - Endpoint: `POST /app/endpoint-web-mgmt/harmony/endpoint/api/v1/remediation/{action}`
 - Headers:
   - `Authorization: Bearer <token>`
@@ -341,7 +343,33 @@ Below are the endpoints used, including required headers, request bodies, and sa
   }
   ```
 
-### 7) Infinity Events Query Creation
+### Infinity Events API
+
+Below are the endpoints used for event log retrieval and analysis:
+
+#### 1) Authentication
+- Endpoint: `POST /auth/external`
+- Headers:
+  - `Content-Type: application/json`
+- Request Body:
+  ```json
+  {
+    "clientId": "<ClientID>",
+    "accessKey": "<AccessKey>"
+  }
+  ```
+- Sample Response:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "token": "<jwt-token>"
+    }
+  }
+  ```
+- **Note**: Same authentication endpoint as Endpoint Management API, but requires API Key with "Logs as a Service" permissions
+
+#### 2) Events Query Creation
 - Endpoint: `POST /app/laas-logs-api/api/logs_query`
 - Headers:
   - `Authorization: Bearer <token>`
@@ -359,13 +387,32 @@ Below are the endpoints used, including required headers, request bodies, and sa
     }
   }
   ```
+- Sample Response:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "taskId": "<task-id>"
+    }
+  }
+  ```
 
-### 8) Infinity Events Task Status
+#### 3) Events Task Status
 - Endpoint: `GET /app/laas-logs-api/api/logs_query/{taskId}`
 - Headers:
   - `Authorization: Bearer <token>`
+- Sample Response:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "state": "Ready",
+      "pageTokens": ["<page-token-1>", "<page-token-2>"]
+    }
+  }
+  ```
 
-### 9) Infinity Events Results Retrieval
+#### 4) Events Results Retrieval
 - Endpoint: `POST /app/laas-logs-api/api/logs_query/retrieve`
 - Headers:
   - `Authorization: Bearer <token>`
@@ -375,6 +422,17 @@ Below are the endpoints used, including required headers, request bodies, and sa
   {
     "taskId": "<task-id>",
     "pageToken": "<page-token>"
+  }
+  ```
+- Sample Response:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "records": [...],
+      "recordsCount": 100,
+      "nextPageToken": "<next-page-token>"
+    }
   }
   ```
 
